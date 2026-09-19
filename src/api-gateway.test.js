@@ -161,7 +161,7 @@ describe('AI gateway boundary', () => {
     await expect(response.json()).resolves.toMatchObject({ provider: 'openrouter', data: validDraft });
     expect(upstream).toHaveBeenCalledTimes(3);
 
-    const [, , openRouterInit] = upstream.mock.calls[2];
+    const [, openRouterInit] = upstream.mock.calls[2];
     const body = JSON.parse(String(openRouterInit?.body));
     expect(body.model).toBe('openrouter/free');
     expect(body.provider).toEqual({ require_parameters: true });
