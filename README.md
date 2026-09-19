@@ -134,9 +134,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ### Deployment
 
 - Vercel static frontend
-- Vercel Function at `/api/ai`
+- Vercel Functions at `/api/health` and `/api/ai`
 - `GEMINI_API_KEY` primary provider secret
 - `OPENROUTER_API_KEY` fallback provider secret
+- production smoke verification via `npm run smoke:deployment -- <url>`
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the production runbook.
 
 ## Scoring model
 
@@ -180,6 +183,7 @@ Never expose provider secrets through a `VITE_` variable.
 ```bash
 npm run check
 npm run test:e2e
+npm run smoke:deployment -- https://your-project.vercel.app
 ```
 
 CI uses the committed lockfile and runs formatting, linting, type checking, unit tests, production build, Playwright journeys and axe analysis.
