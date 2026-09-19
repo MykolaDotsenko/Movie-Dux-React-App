@@ -86,12 +86,66 @@ describe('AI gateway boundary', () => {
     expect(body.input).not.toContain(body.system_instruction);
   });
 
+
+  it('does not spend fallback quota when Gemini succeeds before the hedge window', async () => {
+    process.env.GEMINI_API_KEY = 'gemini-test-key';
+    process.env.OPENROUTER_API_KEY = 'openrouter-test-key';
+
+    const upstream = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          steps: [
+            {
+              type: 'model_output',
+              content: [{ type: 'text', text: JSON.stringify(validDraft) }]
+            }
+          ]
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ provider: 'gemini', data: validDraft });
+    expect(upstream).toHaveBeenCalledOnce();
+  });
+
+  it('retries one transient Gemini failure before giving up on the provider', async () => {
+    process.env.GEMINI_API_KEY = 'gemini-test-key';
+
+    const upstream = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            steps: [
+              {
+                type: 'model_output',
+                content: [{ type: 'text', text: JSON.stringify(validDraft) }]
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ provider: 'gemini', data: validDraft });
+    expect(upstream).toHaveBeenCalledTimes(2);
+  });
+
   it('falls back to the structured-output free OpenRouter when Gemini fails', async () => {
     process.env.GEMINI_API_KEY = 'gemini-test-key';
     process.env.OPENROUTER_API_KEY = 'openrouter-test-key';
 
     const upstream = vi
       .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
       .mockResolvedValueOnce(new Response('{}', { status: 503 }))
       .mockResolvedValueOnce(
         new Response(
@@ -106,9 +160,9 @@ describe('AI gateway boundary', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ provider: 'openrouter', data: validDraft });
-    expect(upstream).toHaveBeenCalledTimes(2);
+    expect(upstream).toHaveBeenCalledTimes(3);
 
-    const [, openRouterInit] = upstream.mock.calls[1];
+    const [, , openRouterInit] = upstream.mock.calls[2];
     const body = JSON.parse(String(openRouterInit?.body));
     expect(body.model).toBe('openrouter/free');
     expect(body.provider).toEqual({ require_parameters: true });
