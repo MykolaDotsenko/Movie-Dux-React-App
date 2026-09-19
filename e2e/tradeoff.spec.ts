@@ -36,11 +36,57 @@ test('main state is free of automated accessibility violations', async ({ page }
 });
 
 test('mobile layout does not create page-level horizontal overflow', async ({ page }) => {
-  const metrics = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth
-  }));
-  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+  const metrics = await page.evaluate(() => {
+    const clientWidth = document.documentElement.clientWidth;
+    const describe = (element: Element) => {
+      const node = element as HTMLElement;
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      const parent = node.parentElement;
+      return {
+        tag: node.tagName.toLowerCase(),
+        id: node.id,
+        className: typeof node.className === 'string' ? node.className : '',
+        parent: parent
+          ? `${parent.tagName.toLowerCase()}#${parent.id}.${typeof parent.className === 'string' ? parent.className : ''}`
+          : '',
+        left: Math.round(rect.left),
+        right: Math.round(rect.right),
+        width: Math.round(rect.width),
+        clientWidth: node.clientWidth,
+        scrollWidth: node.scrollWidth,
+        display: style.display,
+        overflowX: style.overflowX,
+        position: style.position
+      };
+    };
+
+    const offenders = Array.from(document.querySelectorAll('body *'))
+      .map(describe)
+      .filter(
+        (item) =>
+          item.left < -1 ||
+          item.right > clientWidth + 1 ||
+          (item.scrollWidth > item.clientWidth + 1 && item.overflowX === 'visible')
+      )
+      .sort((a, b) => b.right - a.right)
+      .slice(0, 24);
+
+    return {
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth,
+      innerWidth: window.innerWidth,
+      visualViewportWidth: Math.round(window.visualViewport?.width ?? 0),
+      mobile580: window.matchMedia('(max-width: 580px)').matches,
+      mobile800: window.matchMedia('(max-width: 800px)').matches,
+      offenders
+    };
+  });
+
+  expect(
+    metrics.scrollWidth,
+    `Page-level overflow diagnostics:\n${JSON.stringify(metrics, null, 2)}`
+  ).toBeLessThanOrEqual(metrics.clientWidth + 1);
 });
 
 test('decision structure can be extended without breaking the matrix', async ({ page }) => {
