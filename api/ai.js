@@ -284,15 +284,11 @@ async function fromOpenRouter(spec, requestSignal) {
       body: JSON.stringify({
         model: OPENROUTER_MODEL,
         temperature: 0.2,
-        provider: { require_parameters: true },
         messages: [
-          { role: 'system', content: spec.system },
+          { role: 'system', content: `${spec.system} Return only valid JSON matching this schema: ${JSON.stringify(spec.schema)}` },
           { role: 'user', content: spec.user }
         ],
-        response_format: {
-          type: 'json_schema',
-          json_schema: { name: spec.name, strict: true, schema: spec.schema }
-        }
+        response_format: { type: 'json_object' }
       })
     },
     requestSignal
@@ -357,8 +353,8 @@ export async function POST(request) {
   const spec = promptFor(body);
   const providers = [
     ['gemini', fromGemini, Boolean(process.env.GEMINI_API_KEY)],
-    ['deepseek', fromDeepSeek, Boolean(process.env.DEEPSEEK_API_KEY)],
-    ['openrouter', fromOpenRouter, Boolean(process.env.OPENROUTER_API_KEY)]
+    ['openrouter', fromOpenRouter, Boolean(process.env.OPENROUTER_API_KEY)],
+    ['deepseek', fromDeepSeek, Boolean(process.env.DEEPSEEK_API_KEY)]
   ].filter(([, , configured]) => configured);
 
   // Providers are independent. Running them concurrently avoids turning a
