@@ -59,9 +59,9 @@ Tradeoff UI
 /api/ai — server-only gateway
     ↓
 Gemini 3.8 Flash
-    ↓ provider failure / timeout / invalid output
-OpenRouter openrouter/free
-    ↓ failure
+    ↓ slow / transient failure
+OpenRouter openrouter/free (hedged fallback)
+    ↓ both unavailable
 bounded AI error; local analysis remains available
 ```
 
@@ -83,8 +83,10 @@ Review mode can surface blind spots, questions, assumptions and the next useful 
 - Gemini Interactions requests are stateless (`store: false`)
 - same-origin browser requests are enforced at the AI gateway
 - no tools, browsing or external actions exposed to the model
-- bounded request size, timeout and demo rate limiting
-- Gemini primary + OpenRouter fallback
+- bounded request size, per-attempt timeout and demo rate limiting
+- one bounded transient retry per provider
+- hedged Gemini → OpenRouter failover that preserves fallback quota when Gemini is fast
+- privacy-safe provider latency/outcome telemetry
 - complete deterministic functionality when AI is unavailable
 
 See [docs/AI.md](docs/AI.md).
