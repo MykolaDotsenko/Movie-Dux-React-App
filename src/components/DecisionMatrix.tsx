@@ -49,9 +49,9 @@ export function DecisionMatrix({
                   </th>
                   {decision.criteria.map((criterion) => {
                     const score = option.scores[criterion.id];
-                    if (!score) return <td key={criterion.id}>—</td>;
+                    if (!score) return <td key={criterion.id} data-label={criterion.name}>—</td>;
                     return (
-                      <td key={criterion.id}>
+                      <td key={criterion.id} data-label={criterion.name}>
                         <label className="sr-only" htmlFor={`${option.id}-${criterion.id}-score`}>
                           {option.name}, {criterion.name} score
                         </label>
@@ -86,7 +86,7 @@ export function DecisionMatrix({
                       </td>
                     );
                   })}
-                  <td className="result-cell">
+                  <td className="result-cell" data-label="Result">
                     <span className="rank">#{ranked?.rank ?? '—'}</span>
                     <strong>{ranked?.score.toFixed(1) ?? '—'}</strong>
                     <small>{ranked?.confidence.toFixed(0) ?? '—'}% evidence confidence</small>
