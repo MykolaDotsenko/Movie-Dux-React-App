@@ -1,6 +1,8 @@
 name: tradeoff-bootstrap
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [feat/tradeoff-decision-lab]
     paths: [.tradeoff-bootstrap.tar.gz.b64]
@@ -10,6 +12,7 @@ permissions:
 
 jobs:
   rebuild:
+    if: github.event_name == 'pull_request' || github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -35,6 +38,7 @@ jobs:
           npm test
           npm run build
       - name: Commit rebuilt product
+        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           rm -rf node_modules dist coverage playwright-report test-results
