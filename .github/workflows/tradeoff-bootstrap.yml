@@ -24,6 +24,7 @@ jobs:
         shell: bash
         run: |
           cp .tradeoff-bootstrap.patch.py /tmp/tradeoff-bootstrap.patch.py
+          cp .github/workflows/tradeoff-bootstrap.yml /tmp/tradeoff-bootstrap.yml
           cat .tradeoff-bootstrap.part00 \
               .tradeoff-bootstrap.part01 \
               .tradeoff-bootstrap.part02 \
@@ -39,6 +40,9 @@ jobs:
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -a /tmp/tradeoff-source/. .
           python /tmp/tradeoff-bootstrap.patch.py
+          rm -f .github/workflows/quality.yml
+          mkdir -p .github/workflows
+          cp /tmp/tradeoff-bootstrap.yml .github/workflows/tradeoff-bootstrap.yml
 
       - uses: actions/setup-node@v5
         with:
