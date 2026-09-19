@@ -10,9 +10,10 @@ browser
 serverless AI gateway
   ↓
 Gemini 3.8 Flash (primary)
-  ↓ success before hedge window → return immediately
-  ↓ slow / transient failure
-OpenRouter openrouter/free (hedged fallback)
+  ↓ provider failure / timeout / quota / invalid output
+DeepSeek Chat (fallback)
+  ↓ provider failure / timeout / quota / invalid output
+OpenRouter openrouter/free (secondary fallback)
   ↓ failure
 bounded error → deterministic Tradeoff remains fully usable
 ```
@@ -38,7 +39,7 @@ AI may **not**:
 
 ## Structured output
 
-Both providers are asked for JSON constrained by an explicit schema. The server then parses the response again with Zod before returning it to the browser, and the browser validates the provider-neutral envelope once more.
+All providers are asked for JSON. The server parses every response again with Zod before returning it to the browser, and the browser validates the provider-neutral envelope once more.
 
 ```text
 provider schema
@@ -72,6 +73,7 @@ Provider secrets are server-only:
 
 ```text
 GEMINI_API_KEY
+DEEPSEEK_API_KEY
 OPENROUTER_API_KEY
 ```
 
@@ -90,10 +92,8 @@ The gateway includes:
 
 - bounded request bodies;
 - strict request schemas;
-- 9-second timeout per provider attempt;
-- one bounded retry for transient timeout / 429 / 5xx / invalid-output failures;
-- hedged failover: OpenRouter starts only when Gemini is slow or has exhausted a fast transient retry;
-- losing provider work is aborted after another provider succeeds;
+- 8-second provider timeout;
+- primary → fallback provider chain;
 - response validation after every provider;
 - `Cache-Control: no-store`;
 - same-origin browser-request validation by default, with an optional explicit origin override;
@@ -107,8 +107,9 @@ The in-memory rate limiter is deliberately only a portfolio/demo safeguard. A mu
 Configure at least one provider in Vercel. For the strongest demo resilience configure both:
 
 1. `GEMINI_API_KEY` — primary;
-2. `OPENROUTER_API_KEY` — fallback;
-3. optionally `TRADEOFF_ALLOWED_ORIGIN=https://your-domain.example` to pin browser requests to one canonical origin instead of the request URL origin;
-4. optionally `TRADEOFF_SITE_URL=https://your-domain.example` for OpenRouter attribution.
+2. `DEEPSEEK_API_KEY` — primary fallback;
+3. `OPENROUTER_API_KEY` — secondary fallback;
+4. optionally `TRADEOFF_ALLOWED_ORIGIN=https://your-domain.example` to pin browser requests to one canonical origin instead of the request URL origin;
+5. optionally `TRADEOFF_SITE_URL=https://your-domain.example` for OpenRouter attribution.
 
-Free-tier capacity is opportunistic demo capacity, not an availability SLA. The gateway deliberately avoids spending OpenRouter quota when Gemini succeeds quickly, while still starting the fallback early enough to protect perceived latency. Provider success/failure telemetry records only provider name, attempt count, status category and duration — never decision content or secrets. The product is designed so provider downtime never disables deterministic analysis.
+Free-tier capacity is opportunistic demo capacity, not an availability SLA. The product is designed so provider downtime never disables deterministic analysis.
