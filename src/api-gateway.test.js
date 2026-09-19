@@ -87,7 +87,7 @@ describe('AI gateway boundary', () => {
     expect(body.input).not.toContain(body.system_instruction);
   });
 
-  it('falls back to the structured-output free OpenRouter when Gemini fails', async () => {
+  it('falls back to the free OpenRouter model when Gemini fails', async () => {
     process.env.GEMINI_API_KEY = 'gemini-test-key';
     process.env.OPENROUTER_API_KEY = 'openrouter-test-key';
 
@@ -112,11 +112,9 @@ describe('AI gateway boundary', () => {
     const [, openRouterInit] = upstream.mock.calls[1];
     const body = JSON.parse(String(openRouterInit?.body));
     expect(body.model).toBe('openrouter/free');
-    expect(body.provider).toEqual({ require_parameters: true });
-    expect(body.response_format).toMatchObject({
-      type: 'json_schema',
-      json_schema: { name: 'decision_draft', strict: true }
-    });
+    expect(body.provider).toBeUndefined();
+    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body.messages[0].content).toContain('Return only valid JSON matching this schema');
   });
 
   it('uses DeepSeek JSON output as the first fallback after Gemini fails', async () => {
