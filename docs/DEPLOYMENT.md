@@ -1,5 +1,7 @@
 # Production deployment
 
+**Canonical production:** https://tradeoff-decision-lab.vercel.app
+
 Tradeoff is designed for a dedicated Vercel project connected to the repository:
 
 `MykolaDotsenko/tradeoff-decision-lab`
@@ -35,7 +37,7 @@ GEMINI_API_KEY
 OPENROUTER_API_KEY
 ```
 
-Recommended production setup uses both so Gemini can fail over to OpenRouter.
+Recommended production setup uses both. Gemini is primary; OpenRouter is a hedged fallback that starts only after a slow or failed primary path, preserving fallback quota during healthy Gemini responses.
 
 Optional deployment metadata:
 
@@ -54,7 +56,7 @@ Never create a `VITE_*` provider secret. Any variable prefixed with `VITE_` is e
 4. Run the smoke verification:
 
    ```bash
-   npm run smoke:deployment -- https://your-project.vercel.app
+   npm run smoke:deployment -- https://tradeoff-decision-lab.vercel.app
    ```
 
 5. Add provider secrets in Vercel Project Settings → Environment Variables.
