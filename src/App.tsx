@@ -281,14 +281,14 @@ export default function App() {
         persistenceHealthy={persistenceHealthy}
       />
       <main id="workspace" className="app-shell">
-      <input
-        ref={importRef}
-        className="sr-only"
-        type="file"
-        accept="application/json,.json"
-        aria-label="Import Tradeoff JSON file"
-        onChange={(event) => void handleImport(event.target.files?.[0])}
-      />
+        <input
+          ref={importRef}
+          className="sr-only"
+          type="file"
+          accept="application/json,.json"
+          aria-label="Import Tradeoff JSON file"
+          onChange={(event) => void handleImport(event.target.files?.[0])}
+        />
 
         <DecisionHero
           title={decision.title}
