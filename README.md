@@ -80,6 +80,8 @@ Review mode can surface blind spots, questions, assumptions and the next useful 
 - strict request schemas and structured response schemas
 - server-side Zod validation after provider output
 - user decision text treated as untrusted data for prompt-injection isolation
+- Gemini Interactions requests are stateless (`store: false`)
+- same-origin browser requests are enforced at the AI gateway
 - no tools, browsing or external actions exposed to the model
 - bounded request size, timeout and demo rate limiting
 - Gemini primary + OpenRouter fallback
