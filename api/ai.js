@@ -3,10 +3,11 @@ import { z } from 'zod';
 const GEMINI_MODEL = 'gemini-3.8-flash';
 const OPENROUTER_MODEL = 'openrouter/free';
 const MAX_BODY_CHARS = 22_000;
-// AI providers can legitimately need more than a few seconds for structured
-// output. Keep this bounded, but do not fail healthy requests during a short
-// provider queue or cold start.
-const UPSTREAM_TIMEOUT_MS = 20_000;
+const PROVIDER_ATTEMPT_TIMEOUT_MS = 9_000;
+const PROVIDER_HEDGE_DELAY_MS = 1_400;
+const PROVIDER_MAX_ATTEMPTS = 2;
+const PROVIDER_RETRY_BASE_MS = 250;
+const PROVIDER_MAX_RETRY_DELAY_MS = 1_200;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT = 8;
 const MAX_TRACKED_CLIENTS = 500;
@@ -137,6 +138,18 @@ const ReviewRequest = z.object({
 });
 const AiRequest = z.discriminatedUnion('mode', [DraftRequest, ReviewRequest]);
 
+class ProviderFailure extends Error {
+  constructor(provider, code, { status = null, retryable = false, retryAfterMs = null } = {}) {
+    super(code);
+    this.name = 'ProviderFailure';
+    this.provider = provider;
+    this.code = code;
+    this.status = status;
+    this.retryable = retryable;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
 function json(data, status = 200, extraHeaders = {}) {
   return Response.json(data, {
     status,
@@ -204,11 +217,52 @@ function promptFor(body) {
   };
 }
 
+function isRetryableStatus(status) {
+  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+}
+
+function retryAfterMs(response) {
+  const raw = response.headers.get('retry-after');
+  if (!raw) return null;
+
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+
+  const date = Date.parse(raw);
+  return Number.isNaN(date) ? null : Math.max(0, date - Date.now());
+}
+
+function linkedAbortController(parentSignal) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (parentSignal?.aborted) controller.abort();
+  else parentSignal?.addEventListener('abort', abort, { once: true });
+
+  return {
+    controller,
+    cleanup: () => parentSignal?.removeEventListener('abort', abort)
+  };
+}
+
+function abortableDelay(ms, signal) {
+  if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(resolve, ms);
+    const abort = () => {
+      clearTimeout(timeout);
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', abort, { once: true });
+  });
+}
+
 async function fetchWithTimeout(url, init, requestSignal) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), PROVIDER_ATTEMPT_TIMEOUT_MS);
   const abort = () => controller.abort();
   requestSignal?.addEventListener('abort', abort, { once: true });
+
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } finally {
@@ -239,9 +293,23 @@ function extractGeminiOutputText(payload) {
   return null;
 }
 
+function normalizeFailure(provider, error) {
+  if (error instanceof ProviderFailure) return error;
+
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return new ProviderFailure(provider, 'timeout', { retryable: true });
+  }
+
+  if (error instanceof z.ZodError || error instanceof SyntaxError) {
+    return new ProviderFailure(provider, 'invalid_output', { retryable: true });
+  }
+
+  return new ProviderFailure(provider, 'unknown', { retryable: false });
+}
+
 async function fromGemini(spec, requestSignal) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('provider_not_configured');
+  if (!apiKey) throw new ProviderFailure('gemini', 'provider_not_configured');
 
   const response = await fetchWithTimeout(
     'https://generativelanguage.googleapis.com/v1beta/interactions',
@@ -259,16 +327,30 @@ async function fromGemini(spec, requestSignal) {
     requestSignal
   );
 
-  if (!response.ok) throw new Error(`gemini_${response.status}`);
+  if (!response.ok) {
+    throw new ProviderFailure('gemini', `http_${response.status}`, {
+      status: response.status,
+      retryable: isRetryableStatus(response.status),
+      retryAfterMs: retryAfterMs(response)
+    });
+  }
+
   const payload = await response.json();
-  const content = extractGeminiOutputText(payload);
-  if (typeof content !== 'string' || content.length === 0) throw new Error('gemini_empty');
-  return spec.validator.parse(JSON.parse(content));
+  const output = extractGeminiOutputText(payload);
+  if (typeof output !== 'string' || output.length === 0) {
+    throw new ProviderFailure('gemini', 'empty_output', { retryable: true });
+  }
+
+  try {
+    return spec.validator.parse(JSON.parse(output));
+  } catch (error) {
+    throw normalizeFailure('gemini', error);
+  }
 }
 
 async function fromOpenRouter(spec, requestSignal) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error('provider_not_configured');
+  if (!apiKey) throw new ProviderFailure('openrouter', 'provider_not_configured');
 
   const response = await fetchWithTimeout(
     'https://openrouter.ai/api/v1/chat/completions',
@@ -297,11 +379,147 @@ async function fromOpenRouter(spec, requestSignal) {
     requestSignal
   );
 
-  if (!response.ok) throw new Error(`openrouter_${response.status}`);
+  if (!response.ok) {
+    throw new ProviderFailure('openrouter', `http_${response.status}`, {
+      status: response.status,
+      retryable: isRetryableStatus(response.status),
+      retryAfterMs: retryAfterMs(response)
+    });
+  }
+
   const payload = await response.json();
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') throw new Error('openrouter_empty');
-  return spec.validator.parse(JSON.parse(content));
+  const output = payload?.choices?.[0]?.message?.content;
+  if (typeof output !== 'string' || output.length === 0) {
+    throw new ProviderFailure('openrouter', 'empty_output', { retryable: true });
+  }
+
+  try {
+    return spec.validator.parse(JSON.parse(output));
+  } catch (error) {
+    throw normalizeFailure('openrouter', error);
+  }
+}
+
+async function attemptProvider(provider, call, spec, signal) {
+  const startedAt = Date.now();
+  let attempts = 0;
+  let lastFailure = new ProviderFailure(provider, 'unknown');
+
+  while (attempts < PROVIDER_MAX_ATTEMPTS && !signal?.aborted) {
+    attempts += 1;
+
+    try {
+      const data = await call(spec, signal);
+      console.info('AI provider success', {
+        provider,
+        attempts,
+        durationMs: Date.now() - startedAt
+      });
+      return { provider, data };
+    } catch (error) {
+      const failure = normalizeFailure(provider, error);
+      lastFailure = failure;
+
+      if (signal?.aborted || attempts >= PROVIDER_MAX_ATTEMPTS || !failure.retryable) break;
+
+      const requestedDelay =
+        failure.retryAfterMs !== null && failure.retryAfterMs <= PROVIDER_MAX_RETRY_DELAY_MS
+          ? failure.retryAfterMs
+          : PROVIDER_RETRY_BASE_MS * attempts;
+
+      try {
+        await abortableDelay(Math.min(requestedDelay, PROVIDER_MAX_RETRY_DELAY_MS), signal);
+      } catch {
+        break;
+      }
+    }
+  }
+
+  if (!signal?.aborted) {
+    console.warn('AI provider failed', {
+      provider,
+      attempts,
+      code: lastFailure.code,
+      status: lastFailure.status,
+      durationMs: Date.now() - startedAt
+    });
+  }
+
+  throw lastFailure;
+}
+
+async function runHedgedProviders(spec, requestSignal, configuredProviders) {
+  if (configuredProviders.length === 1) {
+    const [provider, call] = configuredProviders[0];
+    return attemptProvider(provider, call, spec, requestSignal);
+  }
+
+  const primary = configuredProviders.find(([provider]) => provider === 'gemini') ?? configuredProviders[0];
+  const fallback = configuredProviders.find(([provider]) => provider !== primary[0]);
+
+  if (!fallback) return attemptProvider(primary[0], primary[1], spec, requestSignal);
+
+  const primaryAbort = linkedAbortController(requestSignal);
+  const fallbackAbort = linkedAbortController(requestSignal);
+  const primaryPromise = attemptProvider(primary[0], primary[1], spec, primaryAbort.controller.signal);
+
+  const early = await Promise.race([
+    primaryPromise.then(
+      (result) => ({ type: 'success', result }),
+      (error) => ({ type: 'failure', error })
+    ),
+    abortableDelay(PROVIDER_HEDGE_DELAY_MS, requestSignal).then(() => ({ type: 'hedge' }))
+  ]);
+
+  if (early.type === 'success') {
+    fallbackAbort.controller.abort();
+    primaryAbort.cleanup();
+    fallbackAbort.cleanup();
+    return early.result;
+  }
+
+  const fallbackPromise = attemptProvider(
+    fallback[0],
+    fallback[1],
+    spec,
+    fallbackAbort.controller.signal
+  );
+
+  if (early.type === 'failure') {
+    try {
+      const result = await fallbackPromise;
+      return result;
+    } finally {
+      primaryAbort.controller.abort();
+      primaryAbort.cleanup();
+      fallbackAbort.cleanup();
+    }
+  }
+
+  try {
+    const result = await Promise.any([primaryPromise, fallbackPromise]);
+    if (result.provider === primary[0]) fallbackAbort.controller.abort();
+    else primaryAbort.controller.abort();
+    return result;
+  } finally {
+    primaryAbort.cleanup();
+    fallbackAbort.cleanup();
+  }
+}
+
+function failureSummary(error) {
+  const failures = error instanceof AggregateError ? error.errors : [error];
+
+  return failures.map((failure) => {
+    const normalized =
+      failure instanceof ProviderFailure ? failure : normalizeFailure('unknown', failure);
+
+    return {
+      provider: normalized.provider,
+      code: normalized.code,
+      status: normalized.status
+    };
+  });
 }
 
 export async function POST(request) {
@@ -324,37 +542,28 @@ export async function POST(request) {
   }
 
   const spec = promptFor(body);
-  const providers = [
+  const configuredProviders = [
     ['gemini', fromGemini, Boolean(process.env.GEMINI_API_KEY)],
     ['openrouter', fromOpenRouter, Boolean(process.env.OPENROUTER_API_KEY)]
-  ].filter(([, , configured]) => configured);
+  ]
+    .filter(([, , configured]) => configured)
+    .map(([provider, call]) => [provider, call]);
 
-  // Providers are independent. Running them concurrently avoids turning a
-  // slow first provider into a guaranteed timeout for the whole request.
-  const attempts = providers.map(async ([name, call]) => ({
-    provider: name,
-    data: await call(spec, request.signal)
-  }));
-
-  let failures;
   try {
-    const result = await Promise.any(attempts);
+    const result = await runHedgedProviders(spec, request.signal, configuredProviders);
     return json(result);
   } catch (error) {
-    failures =
-      error instanceof AggregateError
-        ? error.errors.map((failure) => (failure instanceof Error ? failure.message : 'unknown'))
-        : ['unknown'];
-    console.error('AI providers failed', { failures });
-  }
+    const failures = failureSummary(error);
+    console.error('AI request exhausted providers', { failures });
 
-  const timedOut = failures.some((failure) => failure.toLowerCase().includes('abort'));
-  return json(
-    {
-      error: timedOut
-        ? 'AI providers timed out. Core analysis is still available.'
-        : 'AI providers are temporarily unavailable. Core analysis is still available.'
-    },
-    timedOut ? 504 : 503
-  );
+    const timedOut = failures.some((failure) => failure.code === 'timeout');
+    return json(
+      {
+        error: timedOut
+          ? 'AI providers timed out. Core analysis is still available.'
+          : 'AI providers are temporarily unavailable. Core analysis is still available.'
+      },
+      timedOut ? 504 : 503
+    );
+  }
 }
