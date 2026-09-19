@@ -286,3 +286,58 @@ scoring.write_text(text)
 
 # Standard Vite ambient declarations cover CSS side-effect imports under TypeScript 6.
 Path("src/vite-env.d.ts").write_text('/// <reference types="vite/client" />\n')
+
+
+# Keep unit/component and browser suites owned by their respective runners.
+import json
+package_path = Path("package.json")
+package = json.loads(package_path.read_text())
+package["scripts"]["test"] = "vitest run src"
+package_path.write_text(json.dumps(package, indent=2) + "\n")
+
+# Once bootstrap commits the generated lockfile, normal CI uses immutable npm ci installs.
+Path(".github/workflows/quality.yml").write_text("""name: quality
+
+on:
+  push:
+    branches: [main, feat/tradeoff-decision-lab]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  browser:
+    runs-on: ubuntu-latest
+    needs: checks
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- --project=chromium --project=mobile-chromium
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+""")
