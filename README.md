@@ -157,7 +157,7 @@ This is a bounded local stress test, not a prediction or statistical certainty c
 
 ## Local development
 
-Requirements: Node.js 24+.
+Requirements: Node.js 24.x.
 
 ```bash
 npm ci
