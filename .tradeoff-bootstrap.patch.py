@@ -256,3 +256,33 @@ if old not in text:
     raise SystemExit("Expected App persistence state fragment not found")
 text = text.replace(old, new)
 app.write_text(text)
+
+
+# Preserve strict indexed-access checking while narrowing optional record lookups.
+scoring = Path("src/domain/scoring.ts")
+text = scoring.read_text()
+old = """  const cleaned = Object.fromEntries(
+    criteria.map((criterion) => [
+      criterion.id,
+      Math.max(0, Number.isFinite(rawWeights[criterion.id]) ? rawWeights[criterion.id] : criterion.weight)
+    ])
+  );
+"""
+new = """  const cleaned = Object.fromEntries(
+    criteria.map((criterion) => {
+      const candidate = rawWeights[criterion.id];
+      const weight =
+        typeof candidate === 'number' && Number.isFinite(candidate)
+          ? candidate
+          : criterion.weight;
+      return [criterion.id, Math.max(0, weight)] as const;
+    })
+  );
+"""
+if old not in text:
+    raise SystemExit("Expected weight normalization fragment not found")
+text = text.replace(old, new)
+scoring.write_text(text)
+
+# Standard Vite ambient declarations cover CSS side-effect imports under TypeScript 6.
+Path("src/vite-env.d.ts").write_text('/// <reference types="vite/client" />\n')
