@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const GEMINI_MODEL = 'gemini-3.8-flash';
+const DEEPSEEK_MODEL = 'deepseek-chat';
 const OPENROUTER_MODEL = 'openrouter/free';
 const MAX_BODY_CHARS = 22_000;
 // AI providers can legitimately need more than a few seconds for structured
@@ -304,6 +305,36 @@ async function fromOpenRouter(spec, requestSignal) {
   return spec.validator.parse(JSON.parse(content));
 }
 
+async function fromDeepSeek(spec, requestSignal) {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) throw new Error('provider_not_configured');
+
+  const response = await fetchWithTimeout(
+    'https://api.deepseek.com/chat/completions',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: DEEPSEEK_MODEL,
+        messages: [
+          { role: 'system', content: spec.system },
+          { role: 'user', content: `${spec.user}\n\nReturn only valid JSON.` }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2,
+        thinking: { type: 'disabled' }
+      })
+    },
+    requestSignal
+  );
+
+  if (!response.ok) throw new Error(`deepseek_${response.status}`);
+  const payload = await response.json();
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content !== 'string') throw new Error('deepseek_empty');
+  return spec.validator.parse(JSON.parse(content));
+}
+
 export async function POST(request) {
   if (!originIsAllowed(request)) return json({ error: 'Origin is not allowed.' }, 403);
   if (!consumeRateLimit(request))
@@ -319,13 +350,14 @@ export async function POST(request) {
     return json({ error: 'Invalid JSON body.' }, 400);
   }
 
-  if (!process.env.GEMINI_API_KEY && !process.env.OPENROUTER_API_KEY) {
+  if (!process.env.GEMINI_API_KEY && !process.env.DEEPSEEK_API_KEY && !process.env.OPENROUTER_API_KEY) {
     return json({ error: 'AI is not configured on this deployment.' }, 503);
   }
 
   const spec = promptFor(body);
   const providers = [
     ['gemini', fromGemini, Boolean(process.env.GEMINI_API_KEY)],
+    ['deepseek', fromDeepSeek, Boolean(process.env.DEEPSEEK_API_KEY)],
     ['openrouter', fromOpenRouter, Boolean(process.env.OPENROUTER_API_KEY)]
   ].filter(([, , configured]) => configured);
 
