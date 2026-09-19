@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build",
-    "smoke:deployment": "node scripts/smoke-deployment.mjs"
+    "smoke:deployment": "node scripts/smoke-deployment.mjs",
+    "screenshots:production": "node scripts/capture-production-screenshots.mjs"
   },
   "engines": {
     "node": "24.x"
@@ -47,5 +48,20 @@
     "vite": "8.3.0",
     "vitest": "5.0.1",
     "@types/node": "26.6.1"
-  }
+  },
+  "homepage": "https://tradeoff-decision-lab.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MykolaDotsenko/tradeoff-decision-lab.git"
+  },
+  "keywords": [
+    "decision-support",
+    "react",
+    "typescript",
+    "vite",
+    "sensitivity-analysis",
+    "local-first",
+    "ai",
+    "accessibility"
+  ]
 }
