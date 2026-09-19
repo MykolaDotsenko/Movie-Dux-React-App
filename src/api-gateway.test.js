@@ -138,6 +138,56 @@ describe('AI gateway boundary', () => {
     expect(upstream).toHaveBeenCalledTimes(2);
   });
 
+  it('retries a transient network rejection once', async () => {
+    process.env.GEMINI_API_KEY = 'gemini-test-key';
+
+    const upstream = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            steps: [
+              {
+                type: 'model_output',
+                content: [{ type: 'text', text: JSON.stringify(validDraft) }]
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ provider: 'gemini', data: validDraft });
+    expect(upstream).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a provider that asks for a delay beyond the retry budget', async () => {
+    process.env.GEMINI_API_KEY = 'gemini-test-key';
+    process.env.OPENROUTER_API_KEY = 'openrouter-test-key';
+
+    const upstream = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{}', { status: 429, headers: { 'Retry-After': '60' } }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: JSON.stringify(validDraft) } }]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ provider: 'openrouter', data: validDraft });
+    expect(upstream).toHaveBeenCalledTimes(2);
+  });
+
   it('falls back to the structured-output free OpenRouter when Gemini fails', async () => {
     process.env.GEMINI_API_KEY = 'gemini-test-key';
     process.env.OPENROUTER_API_KEY = 'openrouter-test-key';
