@@ -2,33 +2,9 @@
 
 **An explainable, local-first decision workspace for comparing options, stress-testing assumptions, and understanding why a ranking changes.**
 
-[**Live production demo →**](https://tradeoff-decision-lab.vercel.app)
-
-[![quality](https://github.com/MykolaDotsenko/tradeoff-decision-lab/actions/workflows/quality.yml/badge.svg)](https://github.com/MykolaDotsenko/tradeoff-decision-lab/actions/workflows/quality.yml)
-
 Tradeoff rebuilds an old movie tutorial repository into a deliberately different product: a compact decision-support system with deterministic scoring, editable scenarios, evidence confidence, sensitivity analysis, resilient local persistence, accessible analytical UI, and an optional multi-provider AI copilot.
 
 > **Decision support, not decision replacement.** The product helps a person inspect trade-offs; it never makes the final choice for them.
-
-## Production preview
-
-<p align="center">
-  <a href="https://tradeoff-decision-lab.vercel.app">
-    <img src="docs/screenshots/tradeoff-overview-desktop.png" alt="Tradeoff Decision Lab production overview" width="100%" />
-  </a>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/tradeoff-evidence-matrix-desktop.png" alt="Tradeoff evidence matrix and deterministic scoring" width="49%" />
-  <img src="docs/screenshots/tradeoff-ai-copilot-desktop.png" alt="Tradeoff optional AI decision copilot" width="49%" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/tradeoff-overview-mobile.png" alt="Tradeoff responsive mobile overview" width="32%" />
-  <img src="docs/screenshots/tradeoff-evidence-matrix-mobile.png" alt="Tradeoff responsive mobile evidence cards" width="32%" />
-</p>
-
-**Production:** Vercel · Vite · serverless AI gateway · deterministic core remains fully usable when AI is unavailable.
 
 ## Product loop
 
@@ -83,9 +59,9 @@ Tradeoff UI
 /api/ai — server-only gateway
     ↓
 Gemini 3.8 Flash
-    ↓ slow / transient failure
-OpenRouter openrouter/free (hedged fallback)
-    ↓ both unavailable
+    ↓ provider failure / timeout / invalid output
+OpenRouter openrouter/free
+    ↓ failure
 bounded AI error; local analysis remains available
 ```
 
@@ -107,10 +83,8 @@ Review mode can surface blind spots, questions, assumptions and the next useful 
 - Gemini Interactions requests are stateless (`store: false`)
 - same-origin browser requests are enforced at the AI gateway
 - no tools, browsing or external actions exposed to the model
-- bounded request size, per-attempt timeout and demo rate limiting
-- one bounded transient retry per provider
-- hedged Gemini → OpenRouter failover that preserves fallback quota when Gemini is fast
-- privacy-safe provider latency/outcome telemetry
+- bounded request size, timeout and demo rate limiting
+- Gemini primary + OpenRouter fallback
 - complete deterministic functionality when AI is unavailable
 
 See [docs/AI.md](docs/AI.md).
@@ -162,7 +136,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - Vercel static frontend
 - Vercel Functions at `/api/health` and `/api/ai`
 - `GEMINI_API_KEY` primary provider secret
-- `OPENROUTER_API_KEY` fallback provider secret
+- `DEEPSEEK_API_KEY` primary fallback provider secret
+- `OPENROUTER_API_KEY` secondary fallback provider secret
 - production smoke verification via `npm run smoke:deployment -- <url>`
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the production runbook.
@@ -197,6 +172,7 @@ The core product requires no secrets. For deployed AI capabilities configure at 
 
 ```text
 GEMINI_API_KEY
+DEEPSEEK_API_KEY
 OPENROUTER_API_KEY
 TRADEOFF_ALLOWED_ORIGIN   # optional
 TRADEOFF_SITE_URL         # optional
@@ -209,8 +185,7 @@ Never expose provider secrets through a `VITE_` variable.
 ```bash
 npm run check
 npm run test:e2e
-npm run smoke:deployment -- https://tradeoff-decision-lab.vercel.app
-npm run screenshots:production -- https://tradeoff-decision-lab.vercel.app
+npm run smoke:deployment -- https://your-project.vercel.app
 ```
 
 CI uses the committed lockfile and runs formatting, linting, type checking, unit tests, production build, Playwright journeys and axe analysis.
