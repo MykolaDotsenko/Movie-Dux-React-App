@@ -15,7 +15,7 @@
 ```text
 React components
       ↓
-App orchestration / reducer
+App orchestration / explicit state ownership
       ↓
 ┌───────────────┬────────────────┬─────────────────┐
 │ pure domain   │ storage adapter│ AI client       │

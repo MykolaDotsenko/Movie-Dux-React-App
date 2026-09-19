@@ -53,7 +53,7 @@ Structured output is a shape guarantee, not a truth guarantee. Suggested criteri
 
 ## Prompt-injection boundary
 
-Decision text is untrusted data. It is wrapped in explicit `<decision_context>` delimiters and the system prompt instructs the model to ignore commands, role changes, tool requests, and attempts to override rules inside that data.
+Decision text and workspace context are untrusted data. They are serialized as JSON-encoded data and paired with system instructions that explicitly forbid treating embedded commands, role changes, tool requests, or attempts to override rules as instructions.
 
 The AI route exposes no tools, browsing, file access, or external actions.
 

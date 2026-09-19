@@ -280,6 +280,7 @@ export default function App() {
         }}
         persistenceHealthy={persistenceHealthy}
       />
+      <main id="workspace" className="app-shell">
       <input
         ref={importRef}
         className="sr-only"
@@ -289,7 +290,6 @@ export default function App() {
         onChange={(event) => void handleImport(event.target.files?.[0])}
       />
 
-      <main id="workspace" className="app-shell">
         <DecisionHero
           title={decision.title}
           framing={decision.framing}

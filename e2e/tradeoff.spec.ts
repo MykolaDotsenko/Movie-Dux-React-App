@@ -48,7 +48,7 @@ test('decision structure can be extended without breaking the matrix', async ({ 
   await page.getByRole('button', { name: '+ Option' }).click();
   await page.getByRole('button', { name: '+ Criterion' }).click();
 
-  await expect(page.getByText('4 options · 5 criteria')).toBeVisible();
+  await expect(page.getByText('5 options · 6 criteria')).toBeVisible();
   await page.getByLabel('Option name').last().fill('Pilot first');
   await page.getByLabel('Criterion name').last().fill('Reversibility');
 

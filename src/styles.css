@@ -8,7 +8,14 @@
   }
 
   html {
+    max-width: 100%;
+    overflow-x: clip;
     scroll-behavior: smooth;
+  }
+
+  body,
+  #root {
+    max-width: 100%;
   }
 
   body,
@@ -204,6 +211,8 @@
 
   .app-shell {
     width: min(calc(100% - 32px), var(--max));
+    min-width: 0;
+    max-width: 100%;
     margin: 0 auto;
     padding: 30px 0 48px;
   }
@@ -322,8 +331,15 @@
 
   .workspace-grid {
     display: grid;
+    min-width: 0;
     grid-template-columns: minmax(300px, 0.7fr) minmax(0, 1.7fr);
     gap: 16px;
+  }
+
+  .workspace-grid > *,
+  .insights-grid > *,
+  .panel {
+    min-width: 0;
   }
 
   .panel {
@@ -520,6 +536,9 @@
   }
 
   .matrix-panel {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     margin-top: 16px;
     overflow: hidden;
   }
@@ -534,8 +553,12 @@
   }
 
   .matrix-scroll {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .matrix-table {
@@ -883,6 +906,9 @@
 
 @layer components {
   .structure-editor {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     margin-top: 22px;
     padding: 0;
     overflow: clip;
@@ -927,6 +953,8 @@
 
   .structure-grid {
     display: grid;
+    width: 100%;
+    min-width: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1px;
     border-top: 1px solid var(--line);
@@ -954,11 +982,13 @@
 
   .structure-list {
     display: grid;
+    min-width: 0;
     gap: 12px;
   }
 
   .structure-item {
     display: grid;
+    min-width: 0;
     grid-template-columns: 34px minmax(0, 1fr) 38px;
     gap: 10px;
     align-items: start;
@@ -966,6 +996,10 @@
     border: 1px solid var(--line);
     border-radius: 14px;
     background: color-mix(in oklch, var(--surface) 94%, var(--accent) 6%);
+  }
+
+  .structure-item > div {
+    min-width: 0;
   }
 
   .structure-item label {
@@ -1031,7 +1065,16 @@
 
 @media (max-width: 800px) {
   .structure-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .structure-grid > section {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .structure-section-head {
+    flex-wrap: wrap;
   }
 
   .structure-editor > summary {
@@ -1042,5 +1085,25 @@
   .structure-count {
     order: 3;
     width: 100%;
+  }
+}
+
+@media (max-width: 580px) {
+  .structure-grid > section {
+    padding: 16px;
+  }
+
+  .structure-section-head {
+    align-items: flex-start;
+  }
+
+  .structure-section-head .button {
+    flex: 0 0 auto;
+  }
+
+  .structure-item {
+    grid-template-columns: 26px minmax(0, 1fr) 36px;
+    gap: 8px;
+    padding: 12px;
   }
 }
