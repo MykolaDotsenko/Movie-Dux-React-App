@@ -12,9 +12,7 @@ describe('Vercel production configuration', () => {
 
   it('applies baseline security headers to every route', () => {
     const globalRule = config.headers?.find((rule) => rule.source === '/(.*)');
-    const headers = Object.fromEntries(
-      (globalRule?.headers ?? []).map(({ key, value }) => [key, value])
-    );
+    const headers = Object.fromEntries((globalRule?.headers ?? []).map(({ key, value }) => [key, value]));
 
     expect(headers).toMatchObject({
       'X-Content-Type-Options': 'nosniff',
