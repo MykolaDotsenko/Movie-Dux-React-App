@@ -3,7 +3,10 @@ import { z } from 'zod';
 const GEMINI_MODEL = 'gemini-3.8-flash';
 const OPENROUTER_MODEL = 'openrouter/free';
 const MAX_BODY_CHARS = 22_000;
-const UPSTREAM_TIMEOUT_MS = 8_000;
+// AI providers can legitimately need more than a few seconds for structured
+// output. Keep this bounded, but do not fail healthy requests during a short
+// provider queue or cold start.
+const UPSTREAM_TIMEOUT_MS = 20_000;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT = 8;
 const MAX_TRACKED_CLIENTS = 500;
@@ -321,18 +324,28 @@ export async function POST(request) {
   }
 
   const spec = promptFor(body);
-  const failures = [];
-  for (const provider of [
-    ['gemini', fromGemini],
-    ['openrouter', fromOpenRouter]
-  ]) {
-    try {
-      const [name, call] = provider;
-      const data = await call(spec, request.signal);
-      return json({ provider: name, data });
-    } catch (error) {
-      failures.push(error instanceof Error ? error.message : 'unknown');
-    }
+  const providers = [
+    ['gemini', fromGemini, Boolean(process.env.GEMINI_API_KEY)],
+    ['openrouter', fromOpenRouter, Boolean(process.env.OPENROUTER_API_KEY)]
+  ].filter(([, , configured]) => configured);
+
+  // Providers are independent. Running them concurrently avoids turning a
+  // slow first provider into a guaranteed timeout for the whole request.
+  const attempts = providers.map(async ([name, call]) => ({
+    provider: name,
+    data: await call(spec, request.signal)
+  }));
+
+  let failures;
+  try {
+    const result = await Promise.any(attempts);
+    return json(result);
+  } catch (error) {
+    failures =
+      error instanceof AggregateError
+        ? error.errors.map((failure) => (failure instanceof Error ? failure.message : 'unknown'))
+        : ['unknown'];
+    console.error('AI providers failed', { failures });
   }
 
   const timedOut = failures.some((failure) => failure.toLowerCase().includes('abort'));
