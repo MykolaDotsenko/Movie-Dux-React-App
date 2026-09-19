@@ -304,6 +304,10 @@ function normalizeFailure(provider, error) {
     return new ProviderFailure(provider, 'invalid_output', { retryable: true });
   }
 
+  if (error instanceof TypeError) {
+    return new ProviderFailure(provider, 'network_error', { retryable: true });
+  }
+
   return new ProviderFailure(provider, 'unknown', { retryable: false });
 }
 
@@ -422,10 +426,11 @@ async function attemptProvider(provider, call, spec, signal) {
 
       if (signal?.aborted || attempts >= PROVIDER_MAX_ATTEMPTS || !failure.retryable) break;
 
-      const requestedDelay =
-        failure.retryAfterMs !== null && failure.retryAfterMs <= PROVIDER_MAX_RETRY_DELAY_MS
-          ? failure.retryAfterMs
-          : PROVIDER_RETRY_BASE_MS * attempts;
+      if (failure.retryAfterMs !== null && failure.retryAfterMs > PROVIDER_MAX_RETRY_DELAY_MS) {
+        break;
+      }
+
+      const requestedDelay = failure.retryAfterMs ?? PROVIDER_RETRY_BASE_MS * attempts;
 
       try {
         await abortableDelay(Math.min(requestedDelay, PROVIDER_MAX_RETRY_DELAY_MS), signal);
