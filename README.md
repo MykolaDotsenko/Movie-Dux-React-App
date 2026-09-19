@@ -2,9 +2,33 @@
 
 **An explainable, local-first decision workspace for comparing options, stress-testing assumptions, and understanding why a ranking changes.**
 
+[**Live production demo →**](https://tradeoff-decision-lab.vercel.app)
+
+[![quality](https://github.com/MykolaDotsenko/tradeoff-decision-lab/actions/workflows/quality.yml/badge.svg)](https://github.com/MykolaDotsenko/tradeoff-decision-lab/actions/workflows/quality.yml)
+
 Tradeoff rebuilds an old movie tutorial repository into a deliberately different product: a compact decision-support system with deterministic scoring, editable scenarios, evidence confidence, sensitivity analysis, resilient local persistence, accessible analytical UI, and an optional multi-provider AI copilot.
 
 > **Decision support, not decision replacement.** The product helps a person inspect trade-offs; it never makes the final choice for them.
+
+## Production preview
+
+<p align="center">
+  <a href="https://tradeoff-decision-lab.vercel.app">
+    <img src="docs/screenshots/tradeoff-overview-desktop.png" alt="Tradeoff Decision Lab production overview" width="100%" />
+  </a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/tradeoff-evidence-matrix-desktop.png" alt="Tradeoff evidence matrix and deterministic scoring" width="49%" />
+  <img src="docs/screenshots/tradeoff-ai-copilot-desktop.png" alt="Tradeoff optional AI decision copilot" width="49%" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/tradeoff-overview-mobile.png" alt="Tradeoff responsive mobile overview" width="32%" />
+  <img src="docs/screenshots/tradeoff-evidence-matrix-mobile.png" alt="Tradeoff responsive mobile evidence cards" width="32%" />
+</p>
+
+**Production:** Vercel · Vite · serverless AI gateway · deterministic core remains fully usable when AI is unavailable.
 
 ## Product loop
 
@@ -185,7 +209,8 @@ Never expose provider secrets through a `VITE_` variable.
 ```bash
 npm run check
 npm run test:e2e
-npm run smoke:deployment -- https://your-project.vercel.app
+npm run smoke:deployment -- https://tradeoff-decision-lab.vercel.app
+npm run screenshots:production -- https://tradeoff-decision-lab.vercel.app
 ```
 
 CI uses the committed lockfile and runs formatting, linting, type checking, unit tests, production build, Playwright journeys and axe analysis.
