@@ -49,7 +49,12 @@ export function DecisionMatrix({
                   </th>
                   {decision.criteria.map((criterion) => {
                     const score = option.scores[criterion.id];
-                    if (!score) return <td key={criterion.id} data-label={criterion.name}>—</td>;
+                    if (!score)
+                      return (
+                        <td key={criterion.id} data-label={criterion.name}>
+                          —
+                        </td>
+                      );
                     return (
                       <td key={criterion.id} data-label={criterion.name}>
                         <label className="sr-only" htmlFor={`${option.id}-${criterion.id}-score`}>
