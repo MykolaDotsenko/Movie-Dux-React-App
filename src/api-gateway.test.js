@@ -86,7 +86,6 @@ describe('AI gateway boundary', () => {
     expect(body.input).not.toContain(body.system_instruction);
   });
 
-
   it('does not spend fallback quota when Gemini succeeds before the hedge window', async () => {
     process.env.GEMINI_API_KEY = 'gemini-test-key';
     process.env.OPENROUTER_API_KEY = 'openrouter-test-key';

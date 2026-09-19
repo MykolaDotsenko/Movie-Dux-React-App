@@ -478,12 +478,7 @@ async function runHedgedProviders(spec, requestSignal, configuredProviders) {
     return early.result;
   }
 
-  const fallbackPromise = attemptProvider(
-    fallback[0],
-    fallback[1],
-    spec,
-    fallbackAbort.controller.signal
-  );
+  const fallbackPromise = attemptProvider(fallback[0], fallback[1], spec, fallbackAbort.controller.signal);
 
   if (early.type === 'failure') {
     try {
@@ -511,8 +506,7 @@ function failureSummary(error) {
   const failures = error instanceof AggregateError ? error.errors : [error];
 
   return failures.map((failure) => {
-    const normalized =
-      failure instanceof ProviderFailure ? failure : normalizeFailure('unknown', failure);
+    const normalized = failure instanceof ProviderFailure ? failure : normalizeFailure('unknown', failure);
 
     return {
       provider: normalized.provider,
