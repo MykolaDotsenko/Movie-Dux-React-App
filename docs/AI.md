@@ -53,7 +53,7 @@ Structured output is a shape guarantee, not a truth guarantee. Suggested criteri
 
 ## Prompt-injection boundary
 
-Decision text and workspace context are untrusted data. They are serialized as JSON-encoded data and paired with system instructions that explicitly forbid treating embedded commands, role changes, tool requests, or attempts to override rules as instructions.
+Decision text and workspace context are untrusted data. They are serialized as JSON-encoded data and kept in the user/input channel, while provider system instructions remain separate and explicitly forbid treating embedded commands, role changes, tool requests, or attempts to override rules as instructions.
 
 The AI route exposes no tools, browsing, file access, or external actions.
 
@@ -63,7 +63,7 @@ AI is opt-in per request. Loading, scoring, scenario switching, sensitivity anal
 
 Review mode sends only the visible decision framing, option labels/descriptions, numeric scores, confidence labels, criteria, and scenario weights. **Local evidence notes are not sent.**
 
-The UI states this boundary next to the AI controls.
+The UI states this boundary next to the AI controls. Gemini requests also set `store: false`, so the Interactions API is used statelessly rather than relying on its default server-side conversation storage.
 
 ## Secret handling
 
@@ -93,8 +93,8 @@ The gateway includes:
 - primary → fallback provider chain;
 - response validation after every provider;
 - `Cache-Control: no-store`;
-- same-origin hardening when configured;
-- best-effort per-instance rate limiting;
+- same-origin browser-request validation by default, with an optional explicit origin override;
+- best-effort per-instance rate limiting with a bounded client map;
 - bounded error responses without provider secrets.
 
 The in-memory rate limiter is deliberately only a portfolio/demo safeguard. A multi-instance production service should use a shared rate-limit store at the edge or data layer.
@@ -105,7 +105,7 @@ Configure at least one provider in Vercel. For the strongest demo resilience con
 
 1. `GEMINI_API_KEY` — primary;
 2. `OPENROUTER_API_KEY` — fallback;
-3. optionally `TRADEOFF_ALLOWED_ORIGIN=https://your-domain.example`;
-4. optionally `TRADEOFF_SITE_URL=https://your-domain.example`.
+3. optionally `TRADEOFF_ALLOWED_ORIGIN=https://your-domain.example` to pin browser requests to one canonical origin instead of the request URL origin;
+4. optionally `TRADEOFF_SITE_URL=https://your-domain.example` for OpenRouter attribution.
 
 Free-tier capacity is opportunistic demo capacity, not an availability SLA. The product is designed so provider downtime never disables deterministic analysis.
