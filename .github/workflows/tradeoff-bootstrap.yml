@@ -1,44 +1,55 @@
 name: tradeoff-bootstrap
 
 on:
-  pull_request:
-    branches: [main]
   push:
     branches: [feat/tradeoff-decision-lab]
-    paths: [.tradeoff-bootstrap.tar.gz.b64]
+    paths:
+      - .tradeoff-bootstrap.part*
+      - .github/workflows/tradeoff-bootstrap.yml
 
 permissions:
   contents: write
 
 jobs:
   rebuild:
-    if: github.event_name == 'pull_request' || github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
           ref: feat/tradeoff-decision-lab
+
+      - name: Rebuild source archive
+        shell: bash
+        run: |
+          cat .tradeoff-bootstrap.part00               .tradeoff-bootstrap.part01               .tradeoff-bootstrap.part02               .tradeoff-bootstrap.part03             | base64 --decode > /tmp/tradeoff-source.tar.gz
+          echo "fa56916c23f182a82909d06bfbf75ff969a6c1aea15fd53f7b994c55e19b373e  /tmp/tradeoff-source.tar.gz" | sha256sum --check -
+          mkdir -p /tmp/tradeoff-source
+          tar -xzf /tmp/tradeoff-source.tar.gz -C /tmp/tradeoff-source
+
       - name: Replace legacy CRA with Tradeoff source
         shell: bash
         run: |
-          base64 --decode .tradeoff-bootstrap.tar.gz.b64 > /tmp/tradeoff-source.tar.gz
-          mkdir -p /tmp/tradeoff-source
-          tar -xzf /tmp/tradeoff-source.tar.gz -C /tmp/tradeoff-source
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -a /tmp/tradeoff-source/. .
+
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - name: Install, format and verify
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Format and verify
         run: |
-          npm install --no-audit --no-fund
           npm run format
           npm run lint
           npm run typecheck
           npm test
           npm run build
+
       - name: Commit rebuilt product
-        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           rm -rf node_modules dist coverage playwright-report test-results
