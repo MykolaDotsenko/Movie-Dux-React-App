@@ -1,70 +1,196 @@
-# Getting Started with Create React App
+# Tradeoff — Decision Lab
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+**An explainable, local-first decision workspace for comparing options, stress-testing assumptions, and understanding why a ranking changes.**
 
-## Available Scripts
+Tradeoff rebuilds an old movie tutorial repository into a deliberately different product: a compact decision-support system with deterministic scoring, editable scenarios, evidence confidence, sensitivity analysis, resilient local persistence, accessible analytical UI, and an optional multi-provider AI copilot.
 
-In the project directory, you can run:
+> **Decision support, not decision replacement.** The product helps a person inspect trade-offs; it never makes the final choice for them.
 
-### `npm start`
+## Product loop
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```text
+Frame the decision
+      ↓
+Define options + criteria
+      ↓
+Score evidence + confidence
+      ↓
+Compare ranked options
+      ↓
+Switch priority scenarios
+      ↓
+Stress-test sensitivity
+      ↓
+Investigate weak assumptions
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Why this project is different
 
-### `npm test`
+Most comparison demos stop at a weighted average. Tradeoff deliberately keeps three signals separate:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. **Score** — a deterministic 0–100 weighted preference result.
+2. **Evidence confidence** — how strong the evidence behind the inputs is, shown independently.
+3. **Sensitivity** — how much one criterion weight must move before the current leader changes.
 
-### `npm run build`
+A high-scoring option can still rely on weak evidence, and a narrow lead can be fragile even when every input is certain. Folding those concepts into one opaque number would hide useful uncertainty.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Capabilities
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- editable decision framing, option names and criterion definitions
+- 2–8 options and 2–8 criteria with referentially safe add/remove flows
+- 0–10 score matrix with per-cell `low / medium / high` evidence confidence
+- normalized scenario weights without mutating evidence scores
+- deterministic ranking and contribution breakdown
+- bounded single-criterion sensitivity scan
+- top trade-off explanation between leading options
+- versioned, Zod-validated local persistence
+- integrity checks for IDs, scenario references and score/weight coverage
+- explicit JSON export/import
+- responsive analytical UI with reduced-motion and forced-colors support
+- unit, browser and automated accessibility verification
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Optional Decision Copilot
 
-### `npm run eject`
+AI is a language layer around the deterministic product, **not** its decision engine.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+```text
+Tradeoff UI
+    ↓ explicit user request
+/api/ai — server-only gateway
+    ↓
+Gemini 3.8 Flash
+    ↓ provider failure / timeout / invalid output
+OpenRouter openrouter/free
+    ↓ failure
+bounded AI error; local analysis remains available
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Structure a rough decision
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+A free-form description can become an **editable draft** containing framing, options, criteria, suggested weights, and cautions. Applying that draft is an explicit user action; every score still starts neutral and requires user evidence.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Challenge assumptions
 
-## Learn More
+Review mode can surface blind spots, questions, assumptions and the next useful evidence-gathering step. It receives the visible decision frame, numeric scores and confidence labels — **not local evidence notes**.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### AI safety and reliability boundaries
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+- provider keys exist only server-side
+- no AI call on page load, scoring, persistence or scenario changes
+- strict request schemas and structured response schemas
+- server-side Zod validation after provider output
+- user decision text treated as untrusted data for prompt-injection isolation
+- no tools, browsing or external actions exposed to the model
+- bounded request size, timeout and demo rate limiting
+- Gemini primary + OpenRouter fallback
+- complete deterministic functionality when AI is unavailable
 
-### Code Splitting
+See [docs/AI.md](docs/AI.md).
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Architecture
 
-### Analyzing the Bundle Size
+```text
+React components
+      ↓
+App orchestration / explicit state ownership
+      ↓
+┌───────────────┬────────────────┬─────────────────┐
+│ pure domain   │ storage adapter│ AI client       │
+└───────────────┴────────────────┴─────────────────┘
+                                   ↓
+                                /api/ai
+                           Gemini → OpenRouter
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+The domain module imports no React, DOM, storage, network or AI code. Persistence and AI are adapters around the core rather than dependencies of it.
 
-### Making a Progressive Web App
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Stack
 
-### Advanced Configuration
+### Runtime
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+- React 19.3
+- strict TypeScript 6
+- Vite 8.3
+- Zod 4
+- semantic HTML
+- modern CSS
+- Web Storage API
+- native file APIs
+
+### Verification
+
+- Vitest
+- Testing Library
+- Playwright
+- axe-core
+- ESLint with type-aware rules
+- Prettier
+- GitHub Actions
 
 ### Deployment
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+- Vercel static frontend
+- Vercel Function at `/api/ai`
+- `GEMINI_API_KEY` primary provider secret
+- `OPENROUTER_API_KEY` fallback provider secret
 
-### `npm run build` fails to minify
+## Scoring model
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+For option `o` and criterion `c`:
+
+```text
+weighted contribution = (score[o,c] / 10) × normalizedWeight[c]
+overall score = Σ weighted contribution
+```
+
+Confidence is intentionally **not multiplied into score and does not break score ties**. It is reported separately as evidence quality.
+
+## Sensitivity model
+
+Tradeoff varies one criterion at a time while proportionally rescaling the remaining weights. It searches outward from the current weight and reports the smallest tested shift that changes the first-ranked option.
+
+This is a bounded local stress test, not a prediction or statistical certainty claim.
+
+## Local development
+
+Requirements: Node.js 24+.
+
+```bash
+npm ci
+npm run dev
+```
+
+The core product requires no secrets. For deployed AI capabilities configure at least one server-side key, preferably both:
+
+```text
+GEMINI_API_KEY
+OPENROUTER_API_KEY
+TRADEOFF_ALLOWED_ORIGIN   # optional
+TRADEOFF_SITE_URL         # optional
+```
+
+Never expose provider secrets through a `VITE_` variable.
+
+## Verification
+
+```bash
+npm run check
+npm run test:e2e
+```
+
+CI uses the committed lockfile and runs formatting, linting, type checking, unit tests, production build, Playwright journeys and axe analysis.
+
+## Deliberate trade-offs
+
+- **No backend database:** private decision state is local-first for this portfolio product.
+- **No Redux/Zustand:** state scope does not justify another runtime abstraction.
+- **No chart package:** visualizations remain purpose-built and inspectable.
+- **No AI ranking:** LLMs help with language and critique, not preference arithmetic.
+- **No fake certainty:** score, confidence and sensitivity remain separate concepts.
+- **No provider SDK in the browser:** one small server boundary protects secrets and keeps providers replaceable.
+
+## Origin
+
+The repository originally contained a small Create React App movie/watchlist exercise. Its Git history is preserved, but the current problem domain, product, architecture, design language and quality strategy are intentionally new.
