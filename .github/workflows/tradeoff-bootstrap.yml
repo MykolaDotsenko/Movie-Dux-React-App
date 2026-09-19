@@ -130,7 +130,171 @@ jobs:
           if old not in text:
               raise SystemExit("Expected review prompt fragment not found")
           text = text.replace(old, new)
+          # Raw REST Interactions responses expose model output through steps.
+          # Keep output_text as a defensive compatibility path for SDK-shaped payloads.
+          old = """  const payload = await response.json();
+  const content = payload?.output_text;
+  if (typeof content !== 'string') throw new Error('gemini_empty');
+  return spec.validator.parse(JSON.parse(content));
+"""
+          new = """  const payload = await response.json();
+  const content = extractGeminiOutputText(payload);
+  if (typeof content !== 'string' || content.length === 0) throw new Error('gemini_empty');
+  return spec.validator.parse(JSON.parse(content));
+"""
+          if old not in text:
+              raise SystemExit("Expected Gemini output fragment not found")
+          text = text.replace(old, new)
+
+          marker = "async function fromGemini(spec, requestSignal) {"
+          helper = """function extractGeminiOutputText(payload) {
+  if (typeof payload?.output_text === 'string' && payload.output_text.length > 0) {
+    return payload.output_text;
+  }
+
+  if (!Array.isArray(payload?.steps)) return null;
+
+  const modelSteps = payload.steps.filter((step) => step?.type === 'model_output');
+  for (let index = modelSteps.length - 1; index >= 0; index -= 1) {
+    const content = modelSteps[index]?.content;
+    if (!Array.isArray(content)) continue;
+
+    const textBlocks = content
+      .filter((item) => item?.type === 'text' && typeof item.text === 'string')
+      .map((item) => item.text);
+
+    if (textBlocks.length > 0) return textBlocks.join('');
+  }
+
+  return null;
+}
+
+"""
+          if marker not in text:
+              raise SystemExit("Expected Gemini function marker not found")
+          text = text.replace(marker, helper + marker, 1)
           server.write_text(text)
+
+          storage = Path("src/lib/storage.ts")
+          text = storage.read_text()
+
+          marker = "const STORAGE_KEY = 'tradeoff:decision:v1';\n"
+          store = """const STORAGE_KEY = 'tradeoff:decision:v1';
+
+let persistenceHealthy = true;
+const persistenceListeners = new Set<() => void>();
+
+function setPersistenceHealth(next: boolean): void {
+  if (persistenceHealthy === next) return;
+  persistenceHealthy = next;
+  for (const listener of persistenceListeners) listener();
+}
+
+export function subscribePersistenceHealth(listener: () => void): () => void {
+  persistenceListeners.add(listener);
+  return () => persistenceListeners.delete(listener);
+}
+
+export function getPersistenceHealth(): boolean {
+  return persistenceHealthy;
+}
+"""
+          if marker not in text:
+              raise SystemExit("Expected storage key marker not found")
+          text = text.replace(marker, store, 1)
+
+          old = """export function loadDecision(fallback: Decision): Decision {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return fallback;
+    const parsed = decisionSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveDecision(decision: Decision): boolean {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(decision));
+    return true;
+  } catch {
+    return false;
+  }
+}
+"""
+          new = """export function loadDecision(fallback: Decision): Decision {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    setPersistenceHealth(true);
+    if (!raw) return fallback;
+    const parsed = decisionSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : fallback;
+  } catch {
+    setPersistenceHealth(false);
+    return fallback;
+  }
+}
+
+export function saveDecision(decision: Decision): boolean {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(decision));
+    setPersistenceHealth(true);
+    return true;
+  } catch {
+    setPersistenceHealth(false);
+    return false;
+  }
+}
+"""
+          if old not in text:
+              raise SystemExit("Expected persistence functions not found")
+          text = text.replace(old, new)
+          storage.write_text(text)
+
+          app = Path("src/App.tsx")
+          text = app.read_text()
+          text = text.replace(
+              "import { useEffect, useMemo, useRef, useState } from 'react';",
+              "import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';"
+          )
+          old = "import { exportDecision, importDecision, loadDecision, saveDecision } from './lib/storage';"
+          new = """import {
+  exportDecision,
+  getPersistenceHealth,
+  importDecision,
+  loadDecision,
+  saveDecision,
+  subscribePersistenceHealth
+} from './lib/storage';"""
+          if old not in text:
+              raise SystemExit("Expected App storage import not found")
+          text = text.replace(old, new)
+
+          old = """  const [decision, setDecision] = useState<Decision>(() => loadDecision(sampleDecision));
+  const [persistenceHealthy, setPersistenceHealthy] = useState(true);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPersistenceHealthy(saveDecision(decision));
+  }, [decision]);
+"""
+          new = """  const [decision, setDecision] = useState<Decision>(() => loadDecision(sampleDecision));
+  const persistenceHealthy = useSyncExternalStore(
+    subscribePersistenceHealth,
+    getPersistenceHealth,
+    getPersistenceHealth
+  );
+  const importRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    saveDecision(decision);
+  }, [decision]);
+"""
+          if old not in text:
+              raise SystemExit("Expected App persistence state fragment not found")
+          text = text.replace(old, new)
+          app.write_text(text)
           PY
 
       - uses: actions/setup-node@v5
