@@ -10,8 +10,9 @@ browser
 serverless AI gateway
   ↓
 Gemini 3.8 Flash (primary)
-  ↓ provider failure / timeout / quota / invalid output
-OpenRouter openrouter/free (fallback)
+  ↓ success before hedge window → return immediately
+  ↓ slow / transient failure
+OpenRouter openrouter/free (hedged fallback)
   ↓ failure
 bounded error → deterministic Tradeoff remains fully usable
 ```
@@ -89,8 +90,10 @@ The gateway includes:
 
 - bounded request bodies;
 - strict request schemas;
-- 8-second provider timeout;
-- primary → fallback provider chain;
+- 9-second timeout per provider attempt;
+- one bounded retry for transient timeout / 429 / 5xx / invalid-output failures;
+- hedged failover: OpenRouter starts only when Gemini is slow or has exhausted a fast transient retry;
+- losing provider work is aborted after another provider succeeds;
 - response validation after every provider;
 - `Cache-Control: no-store`;
 - same-origin browser-request validation by default, with an optional explicit origin override;
@@ -108,4 +111,4 @@ Configure at least one provider in Vercel. For the strongest demo resilience con
 3. optionally `TRADEOFF_ALLOWED_ORIGIN=https://your-domain.example` to pin browser requests to one canonical origin instead of the request URL origin;
 4. optionally `TRADEOFF_SITE_URL=https://your-domain.example` for OpenRouter attribution.
 
-Free-tier capacity is opportunistic demo capacity, not an availability SLA. The product is designed so provider downtime never disables deterministic analysis.
+Free-tier capacity is opportunistic demo capacity, not an availability SLA. The gateway deliberately avoids spending OpenRouter quota when Gemini succeeds quickly, while still starting the fallback early enough to protect perceived latency. Provider success/failure telemetry records only provider name, attempt count, status category and duration — never decision content or secrets. The product is designed so provider downtime never disables deterministic analysis.
